@@ -105,7 +105,7 @@ class debugger():
 
     def get_thread_context(self, thread_id = None, h_thread = None):
         context = CONTEXT()
-        CONTEXT.ContextFlags = CONTEXT_FULL | CONTEXT_DEBUG_REGISTERS
+        context.ContextFlags = CONTEXT_FULL | CONTEXT_DEBUG_REGISTERS
 
         h_thread = self.open_thread(thread_id)
         if kernel32.GetThreadContext(h_thread, byref(context)):
@@ -114,7 +114,7 @@ class debugger():
         else:
             return False
 
-    def up(self):
+    def privilege(self):
         # token_handle = win32security.OpenProcessToken(kernel32.GetCurrentProcess(), win32con.TOKEN_ALL_ACCESS) != 0
         # if token_handle == 0:
         #     print '提取令牌失败'
@@ -133,20 +133,26 @@ class debugger():
         TOKEN_ALL_ACCESS = 0x000F01FF
         SE_PRIVILEGE_ENABLED = 0x00000002
 
-        result = kernel32.OpenProcessToken(kernel32.GetCurrentProcess(), TOKEN_ALL_ACCESS, byref(h_token))
-        print result
+        if kernel32.OpenProcessToken(kernel32.GetCurrentProcess(), TOKEN_ALL_ACCESS, byref(h_token)) != True:
+            print '提权失败 -- OpenProcessToken'
+            return False
 
         tp = TOKEN_PRIVILEGES()
         luid = DWORD()
 
-        result = advapi32.LookupPrivilegeValueA(None, 'SeDebugPrivilege', byref(luid))
-        print result
+        if advapi32.LookupPrivilegeValueA(None, 'SeDebugPrivilege', byref(luid)) != True:
+            print '提权失败 -- LookupPrivilegeValueA'
+            return False
 
         tp.PrivilegeCount = 1
         tp.Privileges[0].Luid = luid
         tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED
 
-        result = advapi32.AdjustTokenPrivileges(h_token, False, byref(tp), sizeof(tp), None, None)
-        print result
+        if advapi32.AdjustTokenPrivileges(h_token, False, byref(tp), sizeof(tp), None, None) != True:
+            print '提权失败 -- AdjustTokenPrivileges'
+            return False
 
         kernel32.CloseHandle(h_token)
+
+        print '提权成功'
+        return True
